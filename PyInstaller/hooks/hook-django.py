@@ -16,7 +16,7 @@ import glob
 import os
 from PyInstaller import log as logging
 from PyInstaller.utils.hooks import django_find_root_dir, django_dottedstring_imports, \
-        collect_data_files, collect_submodules, get_module_file_attribute, get_module_attribute
+        collect_data_files, collect_submodules, get_module_file_attribute, django_installed_apps
 
 
 logger = logging.getLogger(__name__)
@@ -87,8 +87,8 @@ if root_dir:
              'django.contrib.sites.migrations',
     ]
     # Include migration scripts of Django-based apps too.
-    installed_apps = eval(get_module_attribute(package_name + '.settings', 'INSTALLED_APPS'))
-    migration_modules.extend(set(app + '.migrations' for app in installed_apps))
+    installed_apps = django_installed_apps(root_dir)
+    migration_modules.extend(set(app + '.migrations' for app, _ in installed_apps))
     # Copy migration files.
     for mod in migration_modules:
         mod_name, bundle_name = mod.split('.', 1)
@@ -101,6 +101,10 @@ if root_dir:
 
     # Include data files from your Django project found in your django root package.
     datas += collect_data_files(package_name)
+
+    # Include data files from installed apps
+    for app_name, app_path in installed_apps:
+        datas += collect_data_files(app_name)
 
     # Include database file if using sqlite. The sqlite database is usually next to the manage.py script.
     root_dir_parent = os.path.dirname(root_dir)

@@ -78,3 +78,19 @@ django.core.management.get_commands = _get_commands
 # Override restart_with_reloader() function otherwise the app might
 # complain that some commands do not exist. e.g. runserver.
 django.utils.autoreload.restart_with_reloader = _restart_with_reloader
+
+from django import VERSION
+
+if VERSION >= (1, 9):
+    import pkgutil
+    import django.template.backends.django
+
+    def walk_packages(path=None, prefix='', onerror=None):
+        loader = pkgutil.find_loader(prefix.rstrip('.'))
+        contents = loader._pyz_archive.contents()
+        for mod_name in contents:
+            if mod_name.startswith(prefix):
+                yield (loader, mod_name, False)
+
+    # monkey patch walk_packages import
+    django.template.backends.django.walk_packages = walk_packages

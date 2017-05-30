@@ -33,14 +33,21 @@ from PyInstaller.utils.hooks import collect_submodules
 
 
 hiddenimports = list(settings.INSTALLED_APPS) + \
-                 list(settings.TEMPLATE_CONTEXT_PROCESSORS) + \
-                 list(settings.TEMPLATE_LOADERS) + \
                  [settings.ROOT_URLCONF]
 
 
 def _remove_class(class_name):
     return '.'.join(class_name.split('.')[0:-1])
 
+### Deprecated in Django 1.8+
+if hasattr(settings, 'TEMPLATE_LOADERS'):
+    for cl in settings.TEMPLATE_LOADERS:
+        cl = _remove_class(cl)
+        hiddenimports.append(cl)
+if hasattr(settings, 'TEMPLATE_CONTEXT_PROCESSORS'):
+    for cl in settings.TEMPLATE_CONTEXT_PROCESSORS:
+        cl = _remove_class(cl)
+        hiddenimports.append(cl)
 
 ### Changes in Django 1.7.
 
@@ -64,13 +71,23 @@ if hasattr(settings, 'MIDDLEWARE_CLASSES'):
 if hasattr(settings, 'TEMPLATES'):
     for templ in settings.TEMPLATES:
         backend = _remove_class(templ['BACKEND'])
-        # Include context_processors.
-        if hasattr(templ, 'OPTIONS'):
-            if hasattr(templ['OPTIONS'], 'context_processors'):
+        # Include context_processors & loaders.
+        if 'OPTIONS' in templ:
+            if 'context_processors' in templ['OPTIONS']:
                 # Context processors are functions - strip last word.
                 mods = templ['OPTIONS']['context_processors']
                 mods = [_remove_class(x) for x in mods]
                 hiddenimports += mods
+            if 'loaders' in templ['OPTIONS']:
+                # Loaders are classes - strip last word.
+                mods = templ['OPTIONS']['loaders']
+                mods = [_remove_class(x) for x in mods]
+            else:
+                # Add default loaders
+                mods = ['django.template.loaders.filesystem.Loader', 'django.template.loaders.app_directories.Loader']
+                mods = [_remove_class(x) for x in mods]
+                hiddenimports += mods
+
 # Include database backends - it is a dict.
 for v in settings.DATABASES.values():
     hiddenimports.append(v['ENGINE'])
@@ -90,14 +107,27 @@ def find_url_callbacks(urls_module):
             hid_list += find_url_callbacks(pattern.urlconf_module)
     return hid_list
 
+if django.VERSION >= (1, 7):
+    from django.apps import apps
 
-# Add templatetags and context processors for each installed app.
-for app in settings.INSTALLED_APPS:
-    app_templatetag_module = app + '.templatetags'
-    app_ctx_proc_module = app + '.context_processors'
-    hiddenimports.append(app_templatetag_module)
-    hiddenimports += collect_submodules(app_templatetag_module)
-    hiddenimports.append(app_ctx_proc_module)
+    for app_config in apps.get_app_configs():
+        if not app_config.path:
+            continue
+        if os.path.exists(os.path.join(app_config.path, 'templatetags')):
+            hiddenimports.append(app_config.name + '.templatetags')
+        if os.path.exists(os.path.join(app_config.path, 'apps.py')):
+            hiddenimports.append(app_config.name + '.apps')
+        if django.VERSION < (1, 8):
+            if os.path.exists(os.path.join(app_config.path, 'context_processors')):
+                hiddenimports.append(app_config.name + '.context_processors')
+else:
+    # Add templatetags and context processors for each installed app.
+    for app in settings.INSTALLED_APPS:
+        app_templatetag_module = app + '.templatetags'
+        app_ctx_proc_module = app + '.context_processors'
+        hiddenimports.append(app_templatetag_module)
+        hiddenimports += collect_submodules(app_templatetag_module)
+        hiddenimports.append(app_ctx_proc_module)
 
 
 from django.core.urlresolvers import RegexURLPattern, RegexURLResolver

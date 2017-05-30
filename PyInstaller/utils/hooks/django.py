@@ -69,4 +69,21 @@ def django_find_root_dir():
 
     return settings_dir
 
-__all__ = ('django_dottedstring_imports', 'django_find_root_dir')
+
+def django_installed_apps(django_root_dir):
+    pths = []
+    # Extend PYTHONPATH with parent dir of django_root_dir.
+    pths.append(misc.get_path_to_toplevel_modules(django_root_dir))
+    # Extend PYTHONPATH with django_root_dir.
+    # Many times Django users do not specify absolute imports in the settings module.
+    pths.append(django_root_dir)
+
+    package_name = os.path.basename(django_root_dir) + '.settings'
+    env = {'DJANGO_SETTINGS_MODULE': package_name,
+           'PYTHONPATH': os.pathsep.join(pths)}
+    ret = eval_script('django_installed_apps.py', env=env)
+
+    return ret
+
+
+__all__ = ('django_dottedstring_imports', 'django_find_root_dir', 'django_installed_apps')
