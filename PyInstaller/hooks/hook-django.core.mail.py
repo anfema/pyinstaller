@@ -7,6 +7,7 @@
 # The full license is in the file COPYING.txt, distributed with this software.
 #-----------------------------------------------------------------------------
 
+from PyInstaller.utils.hooks import collect_submodules
 
 """
 django.core.mail uses part of the email package.
@@ -26,3 +27,5 @@ hiddenimports = [
     'email.mime.multipart',
     'email.mime.audio'
 ]
+
+hiddenimports += collect_submodules('django.core.mail.backends')
