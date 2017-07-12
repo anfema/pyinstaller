@@ -105,9 +105,31 @@ if root_dir:
     # Include data files from installed apps
     for app_name, app_path in installed_apps:
         datas += collect_data_files(app_name)
-        # Include app migrations in the executable (required with PyInstaller 3.2+)
+
+    # Make sure all migrations are added into the executable AND to the bundle filesystem.
+    # Scan apps for migration files since some migrations might not be detected by `collect_submodules` (ImportError).
+    for app_name, app_path in installed_apps:
         if os.path.exists(os.path.join(app_path, 'migrations')):
-            hiddenimports += collect_submodules(app_name + '.migrations')
+            app_migrations = '{}.migrations'.format(app_name)
+            pattern = os.path.join(app_path, 'migrations', '*.py')
+            files = glob.glob(pattern)
+
+            for f in files:
+                target_path = app_migrations.replace('.', os.sep)
+                filename = os.path.splitext(os.path.basename(f))[0]
+                if filename == '__init__':
+                    migration_mod = '{}.migrations'.format(app_name)
+                else:
+                    migration_mod = '{}.migrations.{}'.format(app_name, filename)
+
+                # mark as hidden import
+                if migration_mod not in hiddenimports:
+                    hiddenimports.append(migration_mod)
+
+                # include as data
+                data_tuple = (f, target_path)
+                if data_tuple not in datas:
+                    datas.append(data_tuple)
 
     # Include database file if using sqlite. The sqlite database is usually next to the manage.py script.
     root_dir_parent = os.path.dirname(root_dir)
