@@ -19,6 +19,7 @@ Tested with Django 1.8.
 
 
 import os
+import importlib
 
 # Calling django.setup() avoids the exception AppRegistryNotReady()
 # and also reads the user settings from DJANGO_SETTINGS_MODULE.
@@ -107,16 +108,28 @@ def find_url_callbacks(urls_module):
             hid_list += find_url_callbacks(pattern.urlconf_module)
     return hid_list
 
+
+def has_autoloaded_feature(app, feature):
+    try:
+        importlib.import_module('{}.{}'.format(app, feature))
+    except ImportError:
+        return False
+    else:
+        return True
+
+
 if django.VERSION >= (1, 7):
     from django.apps import apps
+
+    # include features which might be autoloaded by django but aren't referenced via imports
+    autoloaded_features = ('apps', 'templatetags', 'admin')
 
     for app_config in apps.get_app_configs():
         if not app_config.path:
             continue
-        if os.path.exists(os.path.join(app_config.path, 'templatetags')):
-            hiddenimports.append(app_config.name + '.templatetags')
-        if os.path.exists(os.path.join(app_config.path, 'apps.py')):
-            hiddenimports.append(app_config.name + '.apps')
+        for feature in autoloaded_features:
+            if has_autoloaded_feature(app_config.name, feature):
+                hiddenimports.append('{}.{}'.format(app_config.name, feature))
         if django.VERSION < (1, 8):
             if os.path.exists(os.path.join(app_config.path, 'context_processors')):
                 hiddenimports.append(app_config.name + '.context_processors')
